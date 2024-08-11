@@ -1,3 +1,3 @@
-module github.com/DevMaan707/aicraft
+module github.com/DevMaan707/airaft
 
-go 1.22.6
+go 1.20
