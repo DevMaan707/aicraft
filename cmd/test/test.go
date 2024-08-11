@@ -74,12 +74,9 @@ func main() {
 	fmt.Println("Story Writing Result:")
 	fmt.Println(storyWritingTask.Result)
 
-	// Execute tasks concurrently
-	fmt.Println("Executing tasks concurrently...")
 	codeAnalysisAgent.ExecuteTasksConcurrently()
 	storyWritingAgent.ExecuteTasksConcurrently()
 
-	// Print concurrent execution results
 	fmt.Println("Concurrent Code Analysis Result:")
 	fmt.Println(codeAnalysisTask.Result)
 
