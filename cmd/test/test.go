@@ -48,8 +48,10 @@ func main() {
 
 	log.Println("Step 3: Creating task to convert extracted text to embeddings...")
 	taskConvertPDF := manager.CreateTask("task_convert_pdf", "Convert PDF to Embeddings", aicraft.PDFToEmbeddingsTool.ID, map[string]interface{}{
-		"pdf_content": extractedText,
-		"api_key":     apiKey,
+		"pdf_content":  extractedText,
+		"chunkSize":    800,
+		"chunkOverlap": 100,
+		"api_key":      apiKey,
 	})
 	if taskConvertPDF == nil {
 		log.Fatalf("Error: Failed to create task for converting PDF to embeddings.")
@@ -101,13 +103,15 @@ func main() {
 	mostSimilarChunkIndex := aicraft.FindMostSimilarChunk(queryEmbedding, docEmbeddings)
 	log.Printf("Most Similar Chunk Index: %d\n", mostSimilarChunkIndex)
 
-	relevantText := aicraft.ExtractRelevantText(extractedText, mostSimilarChunkIndex)
+	relevantText := aicraft.ExtractRelevantText(extractedText, mostSimilarChunkIndex, 800)
 
 	log.Println("Step 8: Creating task to optimize user query with context...")
 	taskOptimizeQuery := manager.CreateTask("task_optimize_query", "Optimize Query", aicraft.OpenAIContentGeneratorTool.ID, map[string]interface{}{
-		"query":   "Give me the summary of the context provided in 500 words.",
-		"context": relevantText,
-		"api_key": apiKey,
+		"query":        "Give me the summary of the context provided in 500 words.",
+		"context":      relevantText,
+		"chunkSize":    800,
+		"chunkOverlap": 100,
+		"api_key":      apiKey,
 	})
 	if taskOptimizeQuery == nil {
 		log.Fatalf("Error: Failed to create task for optimizing query.")

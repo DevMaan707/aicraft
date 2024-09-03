@@ -55,6 +55,14 @@ var (
 			if !ok {
 				return nil, nil, fmt.Errorf("input 'query' is required and must be a string")
 			}
+			chunkSize, ok := inputs["chunkSize"].(int)
+			if !ok {
+				return nil, nil, fmt.Errorf("input 'chunkSize' is required and must be a int")
+			}
+			chunkOverlap, ok := inputs["chunkOverlap"].(int)
+			if !ok {
+				return nil, nil, fmt.Errorf("input 'query' is required and must be a string")
+			}
 
 			context, ok := inputs["context"].(string)
 			if !ok {
@@ -270,7 +278,9 @@ var (
 		ID:   "pdf_to_embeddings",
 		Name: "PDF to Embeddings",
 		Execute: func(inputs map[string]interface{}) (interface{}, <-chan interface{}, error) {
-			pdfContent, ok := inputs["pdf_content"].(string)
+			pdfContent, _ := inputs["pdf_content"].(string)
+			chunkSize, _ := inputs["chunkSize"].(int)
+			chunkOverlap, ok := inputs["chunkOverlap"].(int)
 			if !ok {
 				return nil, nil, fmt.Errorf("input 'pdf_content' is required and must be a string")
 			}
@@ -418,7 +428,7 @@ var (
 	}
 )
 
-func cosineSimilarity(vec1, vec2 []float64) float64 {
+func CosineSimilarity(vec1, vec2 []float64) float64 {
 	var dotProduct, magA, magB float64
 	for i := 0; i < len(vec1); i++ {
 		dotProduct += vec1[i] * vec2[i]
@@ -428,12 +438,11 @@ func cosineSimilarity(vec1, vec2 []float64) float64 {
 	return dotProduct / (math.Sqrt(magA) * math.Sqrt(magB))
 }
 
-// FindMostSimilarChunk finds the chunk of text most similar to the query embedding.
 func FindMostSimilarChunk(queryEmbedding []float64, docEmbeddings [][]float64) int {
 	bestIndex := 0
 	bestSimilarity := -1.0
 	for i, docEmbedding := range docEmbeddings {
-		similarity := cosineSimilarity(queryEmbedding, docEmbedding)
+		similarity := CosineSimilarity(queryEmbedding, docEmbedding)
 		if similarity > bestSimilarity {
 			bestSimilarity = similarity
 			bestIndex = i
@@ -442,18 +451,16 @@ func FindMostSimilarChunk(queryEmbedding []float64, docEmbeddings [][]float64) i
 	return bestIndex
 }
 
-const (
-	chunkSize    = 800 // Set a smaller chunk size to be well within the token limit
-	chunkOverlap = 100 // Define the overlap between chunks
-)
+// const (
+// 	chunkSize    = 800
+// 	chunkOverlap = 100
+// )
 
-// EstimateTokens estimates the number of tokens in a given text
 func EstimateTokens(text string) int {
-	// Rough approximation: Assume 1 token is roughly 4 characters
+
 	return len(text) / 4
 }
 
-// SplitTextIntoChunks splits the input text into chunks, each adhering to the specified token size limit.
 func SplitTextIntoChunks(text string, chunkSize int, chunkOverlap int) []string {
 	words := strings.Fields(text)
 	var chunks []string
@@ -468,7 +475,6 @@ func SplitTextIntoChunks(text string, chunkSize int, chunkOverlap int) []string 
 
 		chunk := strings.Join(words[start:end], " ")
 
-		// If estimated tokens exceed max, reduce end and try again
 		for EstimateTokens(chunk) > chunkSize {
 			end--
 			chunk = strings.Join(words[start:end], " ")
@@ -476,10 +482,8 @@ func SplitTextIntoChunks(text string, chunkSize int, chunkOverlap int) []string 
 
 		chunks = append(chunks, chunk)
 
-		// Move the start pointer to create overlap
 		start += chunkSize - chunkOverlap
 
-		// Stop if we're at the end
 		if start >= len(words) {
 			break
 		}
@@ -567,7 +571,7 @@ func ExtractDescriptions(content string) []string {
 	return descriptions
 }
 
-func ExtractRelevantText(extractedText string, index int) string {
+func ExtractRelevantText(extractedText string, index int, chunkSize int) string {
 	words := strings.Fields(extractedText)
 	start := index * chunkSize
 	end := start + chunkSize
@@ -577,4 +581,33 @@ func ExtractRelevantText(extractedText string, index int) string {
 	}
 
 	return strings.Join(words[start:end], " ")
+}
+func FlattenAndConvertToFloat32(embeddings [][]float64) ([]float32, []int) {
+	var flattened []float32
+	var lengths []int
+
+	for _, vec := range embeddings {
+		lengths = append(lengths, len(vec))
+		for _, val := range vec {
+			flattened = append(flattened, float32(val))
+		}
+	}
+
+	return flattened, lengths
+}
+
+func ReconstructToFloat64(flattened []float32, lengths []int) [][]float64 {
+	var embeddings [][]float64
+	offset := 0
+
+	for _, length := range lengths {
+		vec := make([]float64, length)
+		for j := 0; j < length; j++ {
+			vec[j] = float64(flattened[offset+j])
+		}
+		embeddings = append(embeddings, vec)
+		offset += length
+	}
+
+	return embeddings
 }
