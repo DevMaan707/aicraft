@@ -54,7 +54,6 @@ func (m *Manager) AssignTaskToAgent(agentID, taskID string) {
 	agent.AddTask(task)
 }
 
-// ExecuteWorkflow respects the dependencies between agents and ensures correct execution order
 func (m *Manager) ExecuteWorkflow() error {
 	executed := make(map[string]bool)
 
@@ -64,7 +63,6 @@ func (m *Manager) ExecuteWorkflow() error {
 				continue
 			}
 
-			// Check if all dependencies have been executed
 			canExecute := true
 			for _, dep := range agent.DependsOn {
 				if !executed[dep] {
@@ -74,13 +72,20 @@ func (m *Manager) ExecuteWorkflow() error {
 			}
 
 			if canExecute {
-				// Execute the agent's tasks
+
 				err := agent.ExecuteTasks()
 				if err != nil {
 					return err
 				}
 
-				// Mark this agent as executed
+				for _, task := range agent.Tasks {
+					if task.Stream != nil {
+						go func(ch <-chan interface{}) {
+
+						}(task.Stream)
+					}
+				}
+
 				executed[agent.ID] = true
 			}
 		}

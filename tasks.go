@@ -6,8 +6,9 @@ type Task struct {
 	ID     string
 	Name   string
 	Tool   *Tool
-	Inputs map[string]interface{} // Inputs required for the tool's execution
+	Inputs map[string]interface{}
 	Result interface{}
+	Stream <-chan interface{}
 }
 
 func NewTask(id, name string, tool *Tool, inputs map[string]interface{}) *Task {
@@ -24,10 +25,11 @@ func (t *Task) Execute() error {
 		return fmt.Errorf("task %s has no tool assigned", t.Name)
 	}
 
-	result, err := t.Tool.Execute(t.Inputs)
+	result, stream, err := t.Tool.Execute(t.Inputs)
 	if err != nil {
 		return err
 	}
 	t.Result = result
+	t.Stream = stream
 	return nil
 }

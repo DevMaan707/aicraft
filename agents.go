@@ -1,13 +1,12 @@
 package aicraft
 
-import "sync"
-
 type Agent struct {
 	ID        string
 	Name      string
 	Tasks     []*Task
-	DependsOn []string               // New field for specifying dependencies
-	Output    map[string]interface{} // New field for storing the agent's output
+	DependsOn []string
+	Output    map[string]interface{}
+	Stream    <-chan interface{}
 }
 
 func NewAgent(id, name string, dependsOn []string) *Agent {
@@ -16,7 +15,7 @@ func NewAgent(id, name string, dependsOn []string) *Agent {
 		Name:      name,
 		Tasks:     []*Task{},
 		DependsOn: dependsOn,
-		Output:    make(map[string]interface{}), // Initialize the output map
+		Output:    make(map[string]interface{}),
 	}
 }
 
@@ -30,35 +29,8 @@ func (a *Agent) ExecuteTasks() error {
 		if err != nil {
 			return err
 		}
-		a.Output[task.ID] = task.Result // Store task result in the agent's output
-	}
-	return nil
-}
-
-func (a *Agent) ExecuteTasksConcurrently() error {
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-	errors := make(chan error, len(a.Tasks))
-
-	for _, task := range a.Tasks {
-		wg.Add(1)
-		go func(task *Task) {
-			defer wg.Done()
-			err := task.Execute()
-			if err != nil {
-				errors <- err
-				return
-			}
-			mu.Lock()
-			a.Output[task.ID] = task.Result // Store task result in the agent's output
-			mu.Unlock()
-		}(task)
-	}
-	wg.Wait()
-	close(errors)
-
-	if len(errors) > 0 {
-		return <-errors
+		a.Output[task.ID] = task.Result
+		a.Stream = task.Stream
 	}
 	return nil
 }

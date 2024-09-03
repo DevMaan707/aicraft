@@ -117,15 +117,20 @@ func main() {
 	agentQueryOptimizer := manager.CreateAgent("agent4", "Query Optimizer", []string{"agent3"})
 	manager.AssignTaskToAgent(agentQueryOptimizer.ID, taskOptimizeQuery.ID)
 
-	log.Println("Step 9: Executing the query  task...")
+	log.Println("Step 9: Executing the query task...")
 	err = manager.ExecuteWorkflow()
 	if err != nil {
 		log.Fatalf("Error during workflow execution: %v", err)
 	}
 	log.Println("Query optimization with context task executed successfully.")
 
-	optimizedQuery := manager.Agents[agentQueryOptimizer.ID].Output[taskOptimizeQuery.ID].(string)
-	log.Printf("Response: %s\n", optimizedQuery)
+	stream := manager.Agents[agentQueryOptimizer.ID].Stream
+	if !ok {
+		log.Fatalf("Error: No stream found for task %s", taskOptimizeQuery.ID)
+	}
 
-	fmt.Println("Process completed successfully.")
+	for content := range stream {
+		fmt.Print(content)
+	}
+
 }
