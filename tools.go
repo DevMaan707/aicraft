@@ -73,7 +73,10 @@ var (
 			if !ok {
 				return nil, nil, fmt.Errorf("input 'api_key' is required and must be a string")
 			}
-
+			model := "gpt-3.5-turbo"
+			if m, ok := inputs["model"].(string); ok && m != "" {
+				model = m
+			}
 			contextChunks := SplitTextIntoChunks(context, chunkSize, chunkOverlap)
 
 			prompt := fmt.Sprintf("Context: %s\n\nQuery: %s", contextChunks[0], query)
@@ -82,7 +85,7 @@ var (
 			}
 
 			data := map[string]interface{}{
-				"model":  "gpt-3.5-turbo",
+				"model":  model,
 				"stream": true,
 				"messages": []map[string]string{
 					{"role": "user", "content": prompt},
@@ -110,7 +113,6 @@ var (
 
 			contentChannel := make(chan interface{})
 
-			// Use a goroutine to process the stream
 			go func() {
 				defer resp.Body.Close()
 				defer close(contentChannel)
@@ -229,9 +231,12 @@ var (
 			if !ok {
 				return nil, nil, fmt.Errorf("input 'api_key' is required and must be a string")
 			}
-
+			model := "text-embedding-ada-002"
+			if m, ok := inputs["model"].(string); ok && m != "" {
+				model = m
+			}
 			data := map[string]interface{}{
-				"model": "text-embedding-ada-002",
+				"model": model,
 				"input": query,
 			}
 
@@ -289,14 +294,17 @@ var (
 			if !ok {
 				return nil, nil, fmt.Errorf("input 'api_key' is required and must be a string")
 			}
-
+			model := "text-embedding-ada-002"
+			if m, ok := inputs["model"].(string); ok && m != "" {
+				model = m
+			}
 			// Split the text into chunks
 			chunks := SplitTextIntoChunks(pdfContent, chunkSize, chunkOverlap)
 			var allEmbeddings [][]float64
 
 			for i, chunk := range chunks {
 				data := map[string]interface{}{
-					"model": "text-embedding-ada-002",
+					"model": model,
 					"input": chunk,
 				}
 
@@ -384,9 +392,12 @@ var (
 			if !ok {
 				return nil, nil, fmt.Errorf("input 'api_key' is required and must be a string")
 			}
-
+			model := "text-embedding-ada-002"
+			if m, ok := inputs["model"].(string); ok && m != "" {
+				model = m
+			}
 			data := map[string]interface{}{
-				"model": "gpt-4-turbo",
+				"model": model,
 				"messages": []map[string]string{
 					{"role": "system", "content": "You are an assistant that identifies the need for diagrams or flowcharts in text."},
 					{"role": "user", "content": fmt.Sprintf("Given the following content, identify if any diagrams or flowcharts are needed and provide descriptions: %s. THE OUTPUT TO BE STRICTLY A SLICE OF STRINGS OR ARRAY OF STRINGS", content)},
