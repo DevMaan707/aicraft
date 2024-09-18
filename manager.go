@@ -1,9 +1,28 @@
 package aicraft
 
 import (
+	"fmt"
 	"log"
 	"sync"
 )
+
+type WorkflowConfig struct {
+	Tasks  []TaskConfig
+	Agents []AgentConfig
+}
+type TaskConfig struct {
+	ID     string
+	Name   string
+	ToolID string
+	Inputs map[string]interface{}
+}
+
+type AgentConfig struct {
+	ID        string
+	Name      string
+	DependsOn []string
+	Tasks     []string
+}
 
 type Manager struct {
 	Agents map[string]*Agent
@@ -89,6 +108,78 @@ func (m *Manager) ExecuteWorkflow() error {
 				executed[agent.ID] = true
 			}
 		}
+	}
+
+	return nil
+}
+func (m *Manager) InitializeWorkflow(config WorkflowConfig) error {
+	// Initialize Tasks
+	for _, taskConfig := range config.Tasks {
+		task := m.CreateTask(taskConfig.ID, taskConfig.Name, taskConfig.ToolID, taskConfig.Inputs)
+		if task == nil {
+			return fmt.Errorf("failed to create task: %s", taskConfig.Name)
+		}
+	}
+
+	// Initialize Agents and Assign Tasks
+	for _, agentConfig := range config.Agents {
+		agent := m.CreateAgent(agentConfig.ID, agentConfig.Name, agentConfig.DependsOn)
+		for _, taskID := range agentConfig.Tasks {
+			m.AssignTaskToAgent(agent.ID, taskID)
+		}
+	}
+
+	return nil
+}
+func (m *Manager) ExecuteAllWorkflows() error {
+	executed := make(map[string]bool)
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	for len(executed) < len(m.Agents) {
+		for _, agent := range m.Agents {
+			mu.Lock()
+			if executed[agent.ID] {
+				mu.Unlock()
+				continue
+			}
+			canExecute := true
+			for _, dep := range agent.DependsOn {
+				if !executed[dep] {
+					canExecute = false
+					break
+				}
+			}
+			mu.Unlock()
+
+			if canExecute {
+				wg.Add(1)
+				go func(agent *Agent) {
+					defer wg.Done()
+
+					mu.Lock()
+					for _, dep := range agent.DependsOn {
+						for _, task := range agent.Tasks {
+							if output, ok := m.Agents[dep].Output["task_extract_text"]; ok {
+								task.Inputs["pdf_content"] = output
+							}
+						}
+					}
+					mu.Unlock()
+
+					err := agent.ExecuteTasks()
+					if err != nil {
+						log.Printf("Error executing tasks for agent %s: %v", agent.ID, err)
+					}
+
+					mu.Lock()
+					executed[agent.ID] = true
+					mu.Unlock()
+
+				}(agent)
+			}
+		}
+		wg.Wait()
 	}
 
 	return nil

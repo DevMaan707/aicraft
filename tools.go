@@ -57,11 +57,11 @@ var (
 			}
 			chunkSize, ok := inputs["chunkSize"].(int)
 			if !ok {
-				return nil, nil, fmt.Errorf("input 'chunkSize' is required and must be a int")
+				return nil, nil, fmt.Errorf("input 'chunkSize' is required and must be an int")
 			}
 			chunkOverlap, ok := inputs["chunkOverlap"].(int)
 			if !ok {
-				return nil, nil, fmt.Errorf("input 'query' is required and must be a string")
+				return nil, nil, fmt.Errorf("input 'chunkOverlap' is required and must be an int")
 			}
 
 			context, ok := inputs["context"].(string)
@@ -73,15 +73,24 @@ var (
 			if !ok {
 				return nil, nil, fmt.Errorf("input 'api_key' is required and must be a string")
 			}
+
+			// Retrieve the verbose flag
+			verbose, _ := inputs["verbose"].(bool)
+
 			model := "gpt-3.5-turbo"
 			if m, ok := inputs["model"].(string); ok && m != "" {
 				model = m
 			}
+
 			contextChunks := SplitTextIntoChunks(context, chunkSize, chunkOverlap)
 
 			prompt := fmt.Sprintf("Context: %s\n\nQuery: %s", contextChunks[0], query)
 			if EstimateTokens(prompt) > maxTokens {
 				prompt = truncateTextToTokenLimit(prompt, maxTokens-500)
+			}
+
+			if verbose {
+				log.Printf("Generated prompt: %s", prompt)
 			}
 
 			data := map[string]interface{}{
@@ -174,10 +183,16 @@ var (
 				return nil, nil, fmt.Errorf("input 'api_key' is required and must be a string")
 			}
 
+			verbose, _ := inputs["verbose"].(bool)
+
 			data := map[string]interface{}{
 				"prompt": description,
 				"n":      1,
 				"size":   "1024x1024",
+			}
+
+			if verbose {
+				log.Printf("Generating image with description: %s", description)
 			}
 
 			jsonData, err := json.Marshal(data)
@@ -214,6 +229,10 @@ var (
 				return nil, nil, fmt.Errorf("no images returned from OpenAI API")
 			}
 
+			if verbose {
+				log.Printf("Generated image URL: %s", response.Data[0].URL)
+			}
+
 			return response.Data[0].URL, nil, nil
 		},
 	}
@@ -231,10 +250,15 @@ var (
 			if !ok {
 				return nil, nil, fmt.Errorf("input 'api_key' is required and must be a string")
 			}
+
+			// Retrieve the verbose flag
+			verbose, _ := inputs["verbose"].(bool)
+
 			model := "text-embedding-ada-002"
 			if m, ok := inputs["model"].(string); ok && m != "" {
 				model = m
 			}
+
 			data := map[string]interface{}{
 				"model": model,
 				"input": query,
@@ -253,6 +277,10 @@ var (
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Authorization", "Bearer "+apiKey)
 
+			if verbose {
+				log.Printf("Sending query to OpenAI Embedding API: %s", query)
+			}
+
 			client := &http.Client{}
 			resp, err := client.Do(req)
 			if err != nil {
@@ -265,6 +293,7 @@ var (
 					Embedding []float64 `json:"embedding"`
 				} `json:"data"`
 			}
+
 			err = json.NewDecoder(resp.Body).Decode(&response)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to decode response: %v", err)
@@ -274,7 +303,10 @@ var (
 				return nil, nil, fmt.Errorf("no embeddings returned from OpenAI API")
 			}
 
-			log.Printf("Query embedding generated successfully, embedding length: %d", len(response.Data[0].Embedding))
+			if verbose {
+				log.Printf("Query embedding generated successfully, embedding length: %d", len(response.Data[0].Embedding))
+			}
+
 			return response.Data[0].Embedding, nil, nil
 		},
 	}
@@ -284,27 +316,37 @@ var (
 		Name: "PDF to Embeddings",
 		Execute: func(inputs map[string]interface{}) (interface{}, <-chan interface{}, error) {
 			pdfContent, _ := inputs["pdf_content"].(string)
+			log.Println("PDF CONTENT LENGTH => " + fmt.Sprintf("%d", len(pdfContent)))
 			chunkSize, _ := inputs["chunkSize"].(int)
 			chunkOverlap, ok := inputs["chunkOverlap"].(int)
 			if !ok {
-				return nil, nil, fmt.Errorf("input 'pdf_content' is required and must be a string")
+				return nil, nil, fmt.Errorf("input 'chunkOverlap' is required and must be an int")
 			}
 
 			apiKey, ok := inputs["api_key"].(string)
 			if !ok {
 				return nil, nil, fmt.Errorf("input 'api_key' is required and must be a string")
 			}
-			model := "text-embedding-ada-002"
-			if m, ok := inputs["model"].(string); ok && m != "" {
-				model = m
-			}
-			// Split the text into chunks
+
+			verbose, _ := inputs["verbose"].(bool)
+
 			chunks := SplitTextIntoChunks(pdfContent, chunkSize, chunkOverlap)
 			var allEmbeddings [][]float64
 
 			for i, chunk := range chunks {
+				if verbose {
+					log.Printf("Processing chunk %d: %s", i+1, chunk)
+				}
+
+				if len(chunk) == 0 {
+					if verbose {
+						log.Printf("Chunk %d is empty, skipping.", i+1)
+					}
+					continue
+				}
+
 				data := map[string]interface{}{
-					"model": model,
+					"model": "text-embedding-ada-002",
 					"input": chunk,
 				}
 
@@ -339,18 +381,26 @@ var (
 				}
 
 				if len(response.Data) == 0 {
+					if verbose {
+						log.Printf("Failed to produce embeddings for the provided text chunk: %s", chunk)
+					}
 					return nil, nil, fmt.Errorf("no embeddings returned from OpenAI API")
 				}
 
 				allEmbeddings = append(allEmbeddings, response.Data[0].Embedding)
-				log.Printf("Chunk %d processed successfully, embedding length: %d", i+1, len(response.Data[0].Embedding))
+				if verbose {
+					log.Printf("Chunk %d processed successfully, embedding length: %d", i+1, len(response.Data[0].Embedding))
+				}
 			}
 
 			if len(allEmbeddings) == 0 {
 				return nil, nil, fmt.Errorf("no valid embeddings were produced")
 			}
 
-			log.Printf("Total embeddings generated: %d", len(allEmbeddings))
+			if verbose {
+				log.Printf("Total embeddings generated: %d", len(allEmbeddings))
+			}
+
 			return allEmbeddings, nil, nil
 		},
 	}
@@ -364,6 +414,8 @@ var (
 				return nil, nil, fmt.Errorf("input 'pdf_url' is required and must be a string")
 			}
 
+			verbose, _ := inputs["verbose"].(bool)
+
 			pdfFilePath, err := DownloadPDF(pdfURL)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to download PDF: %v", err)
@@ -373,6 +425,10 @@ var (
 			text, err := ExtractTextFromPDF(pdfFilePath)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to extract text from PDF: %v", err)
+			}
+
+			if verbose {
+				log.Println("Extracted text from PDF:", text)
 			}
 
 			return text, nil, nil
