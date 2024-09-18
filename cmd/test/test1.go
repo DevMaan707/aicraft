@@ -13,7 +13,7 @@ import (
 var verbose bool
 
 func main() {
-	// Parse the verbose flag
+
 	flag.BoolVar(&verbose, "verbose", false, "Enable verbose logging")
 	flag.Parse()
 
@@ -36,6 +36,7 @@ func main() {
 
 	workflowConfig := aicraft.WorkflowConfig{
 		Tasks: []aicraft.TaskConfig{
+
 			{
 				ID:     "task_extract_text",
 				Name:   "Extract Text from PDF",
@@ -45,6 +46,7 @@ func main() {
 					"verbose": verbose,
 				},
 			},
+
 			{
 				ID:     "task_convert_pdf",
 				Name:   "Convert PDF to Embeddings",
@@ -56,6 +58,7 @@ func main() {
 					"verbose":      verbose,
 				},
 			},
+
 			{
 				ID:     "task_query_embedding",
 				Name:   "Convert Query to Embedding",
@@ -66,17 +69,15 @@ func main() {
 					"verbose": verbose,
 				},
 			},
+
 			{
-				ID:     "task_optimize_query",
-				Name:   "Optimize Query",
-				ToolID: aicraft.OpenAIContentGeneratorTool.ID,
+				ID:     "task_generate_image",
+				Name:   "Generate Image from Text",
+				ToolID: aicraft.ImageGeneratorTool.ID,
 				Inputs: map[string]interface{}{
-					"query":        "Give me the summary of the context provided in 500 words.",
-					"context":      "Sample context here...",
-					"chunkSize":    800,
-					"chunkOverlap": 100,
-					"api_key":      apiKey,
-					"verbose":      verbose,
+					"description": "A futuristic city skyline at sunset.",
+					"api_key":     apiKey,
+					"verbose":     verbose,
 				},
 			},
 		},
@@ -106,10 +107,10 @@ func main() {
 			},
 			{
 				ID:        "agent4",
-				Name:      "Query Optimizer",
+				Name:      "Image Generator",
 				DependsOn: []string{"agent3"},
 				Tasks: []string{
-					"task_optimize_query",
+					"task_generate_image",
 				},
 			},
 		},
@@ -127,20 +128,35 @@ func main() {
 	if err != nil {
 		log.Fatalf("Workflow completed with errors: %v", err)
 	} else {
-		// Extract the stream from agent4 for query optimization task
-		agent := manager.Agents["agent4"]
-		taskOptimizeQuery := manager.Tasks["task_optimize_query"]
-		stream := agent.Stream
+		// After tasks are executed, perform the similarity search
+		log.Println("Step 3: Performing similarity search between query and PDF content embeddings...")
 
-		if stream == nil {
-			log.Fatalf("Error: No stream found for task %s", taskOptimizeQuery.ID)
+		// Get the embeddings for PDF content and query
+		pdfEmbeddings := manager.Agents["agent2"].Output["task_convert_pdf"].([][]float64)
+		queryEmbedding := manager.Agents["agent3"].Output["task_query_embedding"].([]float64)
+
+		// Perform the similarity search to find the most relevant text chunk
+		mostSimilarChunkIndex := aicraft.FindMostSimilarChunk(queryEmbedding, pdfEmbeddings)
+		log.Printf("Most Similar Chunk Index: %d\n", mostSimilarChunkIndex)
+
+		// Extract the relevant text based on the similarity search
+		extractedText := manager.Agents["agent1"].Output["task_extract_text"].(string)
+		relevantText := aicraft.ExtractRelevantText(extractedText, mostSimilarChunkIndex, 800)
+
+		log.Printf("Relevant text for image generation: %s\n", relevantText)
+
+		// Update the image generation task with the relevant context description
+		manager.Tasks["task_generate_image"].Inputs["description"] = relevantText
+
+		// Execute the image generation task
+		imageAgent := manager.Agents["agent4"]
+		imageTask := manager.Tasks["task_generate_image"]
+		imageURL, ok := imageAgent.Output[imageTask.ID].(string)
+		if !ok {
+			log.Fatalf("Error: Image URL is invalid or not found.")
 		}
 
-		// Print the stream content (the optimized query output)
-		for content := range stream {
-			fmt.Print(content)
-		}
-
+		fmt.Printf("Generated Image URL: %s\n", imageURL)
 		log.Println("Workflow completed successfully.")
 	}
 }
