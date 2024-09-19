@@ -641,14 +641,27 @@ func ExtractDescriptions(content string) []string {
 func ExtractRelevantText(extractedText string, index int, chunkSize int) string {
 	words := strings.Fields(extractedText)
 	start := index * chunkSize
+
+	// Ensure start is within bounds
+	if start > len(words) {
+		start = len(words)
+	}
+
 	end := start + chunkSize
 
+	// Ensure end is within bounds
 	if end > len(words) {
 		end = len(words)
 	}
 
+	// Handle cases where start is greater than or equal to end
+	if start >= end {
+		return ""
+	}
+
 	return strings.Join(words[start:end], " ")
 }
+
 func FlattenAndConvertToFloat32(embeddings [][]float64) ([]float32, []int) {
 	var flattened []float32
 	var lengths []int
