@@ -163,6 +163,11 @@ func (m *Manager) ExecuteAllWorkflows() error {
 							if output, ok := m.Agents[dep].Output["task_extract_text"]; ok {
 								task.Inputs["pdf_content"] = output
 							}
+							if output, ok := m.Agents[dep].Output["task_query_embedding"]; ok {
+								fmt.Println(output)
+
+								task.Inputs["context"] = output
+							}
 						}
 					}
 					mu.Unlock()

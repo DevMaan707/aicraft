@@ -68,7 +68,7 @@ var (
 			if !ok {
 				return nil, nil, fmt.Errorf("input 'context' is required and must be a string")
 			}
-
+			fmt.Println(context)
 			apiKey, ok := inputs["api_key"].(string)
 			if !ok {
 				return nil, nil, fmt.Errorf("input 'api_key' is required and must be a string")
@@ -638,23 +638,37 @@ func ExtractDescriptions(content string) []string {
 	return descriptions
 }
 
-func ExtractRelevantText(extractedText string, index int, chunkSize int) string {
+func ExtractRelevantText1(extractedText string, index int, chunkSize int) string {
 	words := strings.Fields(extractedText)
 	start := index * chunkSize
-
-	// Ensure start is within bounds
-	if start > len(words) {
-		start = len(words)
-	}
-
 	end := start + chunkSize
 
-	// Ensure end is within bounds
 	if end > len(words) {
 		end = len(words)
 	}
 
-	// Handle cases where start is greater than or equal to end
+	return strings.Join(words[start:end], " ")
+}
+
+func ExtractRelevantText(extractedText string, index int, chunkSize int) string {
+	words := strings.Fields(extractedText)
+	totalWords := len(words)
+
+	if totalWords == 0 {
+		fmt.Println("Total words == 0")
+		return ""
+	}
+
+	start := index * chunkSize
+	if start >= totalWords {
+		start = totalWords - 1
+	}
+
+	end := start + chunkSize
+	if end > totalWords {
+		end = totalWords
+	}
+
 	if start >= end {
 		return ""
 	}
